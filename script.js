@@ -1,347 +1,337 @@
-// Initial data fetch and state management
-let state = {
-    competitors: [],
-    teams: [],
-    games: [],
-    matches: []
+// URL base da API
+const URL_API = 'http://localhost:3000';
+
+// Estado local (espelho dos dados da API)
+let estado = {
+  jogos: [],
+  times: [],
+  competidores: [],
+  confrontos: []
 };
 
-// Application Initialization
+// ==================== INICIALIZAÇÃO ====================
+
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadInitialData();
-    setupNavigation();
-    renderAll();
+  await carregarDados();
+  configurarNavegacao();
+  renderizarTudo();
 });
 
-// Load data from JSON or LocalStorage
-async function loadInitialData() {
-    const savedState = localStorage.getItem('gamerclass_state');
-    if (savedState) {
-        state = JSON.parse(savedState);
-    } else {
-        try {
-            const response = await fetch('data.json');
-            state = await response.json();
-            saveState();
-        } catch (error) {
-            console.error("Erro ao carregar data.json:", error);
-            // Default empty state if fetch fails
-        }
-    }
+async function carregarDados() {
+  const [jogos, times, competidores, confrontos] = await Promise.all([
+    fetch(`${URL_API}/jogos`).then(r => r.json()),
+    fetch(`${URL_API}/times`).then(r => r.json()),
+    fetch(`${URL_API}/competidores`).then(r => r.json()),
+    fetch(`${URL_API}/confrontos`).then(r => r.json())
+  ]);
+
+  estado.jogos        = jogos;
+  estado.times        = times;
+  estado.competidores = competidores;
+  estado.confrontos   = confrontos;
 }
 
-function saveState() {
-    localStorage.setItem('gamerclass_state', JSON.stringify(state));
-    renderAll();
-}
+// ==================== NAVEGAÇÃO ====================
 
-// Navigation Logic
-function setupNavigation() {
-    const navItems = document.querySelectorAll('#sidebar-nav li');
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const viewId = item.getAttribute('data-view');
-            switchView(viewId);
-            
-            navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-        });
+function configurarNavegacao() {
+  const itensNav = document.querySelectorAll('#sidebar-nav li');
+  itensNav.forEach(item => {
+    item.addEventListener('click', () => {
+      const idView = item.getAttribute('data-view');
+      trocarView(idView);
+      itensNav.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
     });
+  });
 }
 
-function switchView(viewId) {
-    document.querySelectorAll('.view').forEach(view => {
-        view.classList.remove('active');
-    });
-    document.getElementById(`view-${viewId}`).classList.add('active');
+function trocarView(idView) {
+  document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+  document.getElementById(`view-${idView}`).classList.add('active');
 }
 
-// Rendering Functions
-function renderAll() {
-    renderDashboard();
-    renderJogos();
-    renderTimes();
-    renderCompetidores();
-    renderConfrontos();
+// ==================== RENDERIZAÇÃO ====================
+
+function renderizarTudo() {
+  renderizarDashboard();
+  renderizarJogos();
+  renderizarTimes();
+  renderizarCompetidores();
+  renderizarConfrontos();
 }
 
-function renderDashboard() {
-    const statsContainer = document.getElementById('dashboard-stats');
-    const upcomingContainer = document.getElementById('upcoming-matches');
-    
-    // Calculate Stats
-    const totalTeams = state.teams.length;
-    const totalPlayers = state.competitors.length;
-    const finishedMatches = state.matches.filter(m => m.status === 'finished').length;
-    const scheduledMatches = state.matches.filter(m => m.status === 'scheduled').length;
+function renderizarDashboard() {
+  const containerStats    = document.getElementById('dashboard-stats');
+  const containerProximos = document.getElementById('upcoming-matches');
 
-    statsContainer.innerHTML = `
-        <div class="card">
-            <span class="card-tag">Torneio</span>
-            <h3>${totalTeams}</h3>
-            <p class="subtitle">Equipes</p>
+  const totalTimes        = estado.times.length;
+  const totalCompetidores = estado.competidores.length;
+  const confrontosFinaliz = estado.confrontos.filter(c => c.situacao === 'finalizado').length;
+  const confrontosAgend   = estado.confrontos.filter(c => c.situacao === 'agendado').length;
+
+  containerStats.innerHTML = `
+    <div class="card">
+      <span class="card-tag">Torneio</span>
+      <h3>${totalTimes}</h3>
+      <p class="subtitle">Equipes</p>
+    </div>
+    <div class="card">
+      <span class="card-tag">Atletas</span>
+      <h3>${totalCompetidores}</h3>
+      <p class="subtitle">Competidores</p>
+    </div>
+    <div class="card">
+      <span class="card-tag">Encerrados</span>
+      <h3>${confrontosFinaliz}</h3>
+      <p class="subtitle">Resultados</p>
+    </div>
+    <div class="card">
+      <span class="card-tag">Pendentes</span>
+      <h3>${confrontosAgend}</h3>
+      <p class="subtitle">Agendamentos</p>
+    </div>
+  `;
+
+  const proximos = estado.confrontos.filter(c => c.situacao === 'agendado').slice(0, 3);
+  containerProximos.innerHTML = proximos.map(c => {
+    const jogo  = estado.jogos.find(j => j.id == c.idJogo);
+    const time1 = estado.times.find(t => t.id == c.idTime1);
+    const time2 = estado.times.find(t => t.id == c.idTime2);
+    return `
+      <div class="card">
+        <span class="card-tag">${jogo?.nome || 'Jogo'}</span>
+        <div class="match-card">
+          <div class="team-score"><strong>${time1?.nome || 'TBD'}</strong></div>
+          <div class="vs">VS</div>
+          <div class="team-score"><strong>${time2?.nome || 'TBD'}</strong></div>
         </div>
-        <div class="card">
-            <span class="card-tag">Atletas</span>
-            <h3>${totalPlayers}</h3>
-            <p class="subtitle">Competidores</p>
-        </div>
-        <div class="card">
-            <span class="card-tag">Encerrados</span>
-            <h3>${finishedMatches}</h3>
-            <p class="subtitle">Resultados</p>
-        </div>
-        <div class="card">
-            <span class="card-tag">Pendentes</span>
-            <h3>${scheduledMatches}</h3>
-            <p class="subtitle">Agendamentos</p>
-        </div>
+      </div>
     `;
-
-    // Upcoming matches
-    const upcoming = state.matches.filter(m => m.status === 'scheduled').slice(0, 3);
-    upcomingContainer.innerHTML = upcoming.map(m => {
-        const game = state.games.find(g => g.id == m.gameId);
-        const t1 = state.teams.find(t => t.id == m.team1Id);
-        const t2 = state.teams.find(t => t.id == m.team2Id);
-        return `
-            <div class="card">
-                <span class="card-tag">${game?.name || 'Jogo'}</span>
-                <div class="match-card">
-                    <div class="team-score"><strong>${t1?.name || 'TBD'}</strong></div>
-                    <div class="vs">VS</div>
-                    <div class="team-score"><strong>${t2?.name || 'TBD'}</strong></div>
-                </div>
-            </div>
-        `;
-    }).join('');
+  }).join('');
 }
 
-function renderJogos() {
-    const list = document.getElementById('list-jogos');
-    list.innerHTML = state.games.map(g => `
-        <div class="card">
-            <span class="card-tag">${g.genre}</span>
-            <h3>${g.name}</h3>
-            <p class="subtitle">ID: ${g.id}</p>
+function renderizarJogos() {
+  const lista = document.getElementById('list-jogos');
+  lista.innerHTML = estado.jogos.map(j => `
+    <div class="card">
+      <span class="card-tag">${j.genero}</span>
+      <h3>${j.nome}</h3>
+      <p class="subtitle">ID: ${j.id}</p>
+    </div>
+  `).join('');
+}
+
+function renderizarTimes() {
+  const lista = document.getElementById('list-times');
+  lista.innerHTML = estado.times.map(t => `
+    <div class="card" style="border-right: 4px solid ${t.cor}">
+      <span class="card-tag">EQUIPE</span>
+      <h3>${t.nome}</h3>
+      <p class="subtitle">${estado.competidores.filter(c => c.idTime == t.id).length} Jogadores</p>
+    </div>
+  `).join('');
+}
+
+function renderizarCompetidores() {
+  const lista = document.getElementById('list-competidores');
+  lista.innerHTML = estado.competidores.map(c => {
+    const time = estado.times.find(t => t.id == c.idTime);
+    return `
+      <div class="card">
+        <span class="card-tag">${time?.nome || 'Sem Time'}</span>
+        <h3>${c.apelido}</h3>
+        <p class="subtitle">${c.nome}</p>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderizarConfrontos() {
+  const lista = document.getElementById('list-confrontos');
+  lista.innerHTML = estado.confrontos.map(c => {
+    const jogo  = estado.jogos.find(j => j.id == c.idJogo);
+    const time1 = estado.times.find(t => t.id == c.idTime1);
+    const time2 = estado.times.find(t => t.id == c.idTime2);
+    const dataFormatada = new Date(c.data).toLocaleString('pt-BR');
+    return `
+      <div class="card">
+        <span class="card-tag">${jogo?.nome || 'Jogo'} | ${dataFormatada}</span>
+        <div class="match-card">
+          <div class="team-score">
+            <strong>${time1?.nome || '???'}</strong>
+            <div class="score">${c.placar1}</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="team-score">
+            <strong>${time2?.nome || '???'}</strong>
+            <div class="score">${c.placar2}</div>
+          </div>
         </div>
-    `).join('');
-}
-
-function renderTimes() {
-    const list = document.getElementById('list-times');
-    list.innerHTML = state.teams.map(t => `
-        <div class="card" style="border-right: 4px solid ${t.color}">
-            <span class="card-tag">EQUIPE</span>
-            <h3>${t.name}</h3>
-            <p class="subtitle">${state.competitors.filter(c => c.teamId == t.id).length} Jogadores</p>
+        <div style="margin-top: 1rem; text-align: center;">
+          <span class="card-tag" style="background: ${c.situacao === 'finalizado' ? '#10b981' : '#f59e0b'}">
+            ${c.situacao === 'finalizado' ? 'FINALIZADO' : 'AGENDADO'}
+          </span>
+          ${c.situacao === 'agendado' ? `<button onclick="finalizarConfronto(${c.id})" style="padding: 4px 8px; font-size: 0.7rem; margin-left: 8px;">Finalizar</button>` : ''}
         </div>
-    `).join('');
+      </div>
+    `;
+  }).join('');
 }
 
-function renderCompetidores() {
-    const list = document.getElementById('list-competidores');
-    list.innerHTML = state.competitors.map(c => {
-        const team = state.teams.find(t => t.id == c.teamId);
-        return `
-            <div class="card">
-                <span class="card-tag">${team?.name || 'Sem Time'}</span>
-                <h3>${c.nickname}</h3>
-                <p class="subtitle">${c.name}</p>
-            </div>
-        `;
-    }).join('');
-}
+// ==================== MODAL / FORMULÁRIOS ====================
 
-function renderConfrontos() {
-    const list = document.getElementById('list-confrontos');
-    list.innerHTML = state.matches.map(m => {
-        const game = state.games.find(g => g.id == m.gameId);
-        const t1 = state.teams.find(t => t.id == m.team1Id);
-        const t2 = state.teams.find(t => t.id == m.team2Id);
-        const dateStr = new Date(m.date).toLocaleString('pt-BR');
-        
-        return `
-            <div class="card">
-                <span class="card-tag">${game?.name || 'Jogo'} | ${dateStr}</span>
-                <div class="match-card">
-                    <div class="team-score">
-                        <strong>${t1?.name || '???'}</strong>
-                        <div class="score">${m.score1}</div>
-                    </div>
-                    <div class="vs">VS</div>
-                    <div class="team-score">
-                        <strong>${t2?.name || '???'}</strong>
-                        <div class="score">${m.score2}</div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem; text-align: center;">
-                    <span class="card-tag" style="background: ${m.status === 'finished' ? '#10b981' : '#f59e0b'}">
-                        ${m.status === 'finished' ? 'FINALIZADO' : 'AGENDADO'}
-                    </span>
-                    ${m.status === 'scheduled' ? `<button onclick="finishMatch(${m.id})" style="padding: 4px 8px; font-size: 0.7rem; margin-left: 8px;">Finalizar</button>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
+const modal      = document.getElementById('modal-container');
+const conteudoForm = document.getElementById('form-content');
 
-// Form and Modal Logic
-const modal = document.getElementById('modal-container');
-const formContent = document.getElementById('form-content');
+function showForm(tipo) {
+  modal.style.display = 'flex';
+  setTimeout(() => {
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'all';
+  }, 10);
 
-function showForm(type) {
-    modal.style.display = 'flex';
-    setTimeout(() => {
-        modal.style.opacity = '1';
-        modal.style.pointerEvents = 'all';
-    }, 10);
+  let html = '';
 
-    let html = '';
-    
-    if (type === 'jogo') {
-        html = `
-            <h2>Adicionar Jogo</h2>
-            <form onsubmit="saveItem(event, 'games')">
-                <div class="form-group">
-                    <label>Nome do Jogo</label>
-                    <input type="text" name="name" required placeholder="Ex: CS2">
-                </div>
-                <div class="form-group">
-                    <label>Gênero</label>
-                    <input type="text" name="genre" required placeholder="Ex: FPS">
-                </div>
-                <div style="display:flex; gap: 1rem;">
-                    <button type="submit" class="btn-primary">Salvar</button>
-                    <button type="button" onclick="closeModal()">Cancelar</button>
-                </div>
-            </form>
-        `;
-    } else if (type === 'time') {
-        html = `
-            <h2>Adicionar Time</h2>
-            <form onsubmit="saveItem(event, 'teams')">
-                <div class="form-group">
-                    <label>Nome da Equipe</label>
-                    <input type="text" name="name" required placeholder="Ex: Ninjas da Noite">
-                </div>
-                <div class="form-group">
-                    <label>Cor Identidade</label>
-                    <input type="color" name="color" value="#6366f1">
-                </div>
-                <div style="display:flex; gap: 1rem;">
-                    <button type="submit" class="btn-primary">Criar</button>
-                    <button type="button" onclick="closeModal()">Cancelar</button>
-                </div>
-            </form>
-        `;
-    } else if (type === 'competidor') {
-        html = `
-            <h2>Registrar Competidor</h2>
-            <form onsubmit="saveItem(event, 'competitors')">
-                <div class="form-group">
-                    <label>Nome Completo</label>
-                    <input type="text" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label>Nickname</label>
-                    <input type="text" name="nickname" required>
-                </div>
-                <div class="form-group">
-                    <label>Time</label>
-                    <select name="teamId" required>
-                        ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-                    </select>
-                </div>
-                <div style="display:flex; gap: 1rem;">
-                    <button type="submit" class="btn-primary">Registrar</button>
-                    <button type="button" onclick="closeModal()">Cancelar</button>
-                </div>
-            </form>
-        `;
-    } else if (type === 'confronto') {
-        html = `
-            <h2>Novo Confronto</h2>
-            <form onsubmit="saveItem(event, 'matches')">
-                <div class="form-group">
-                    <label>Jogo</label>
-                    <select name="gameId" required>
-                        ${state.games.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
-                    </select>
-                </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label>Time A</label>
-                        <select name="team1Id" required>
-                            ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Time B</label>
-                        <select name="team2Id" required>
-                            ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Data/Hora</label>
-                    <input type="datetime-local" name="date" required value="${new Date().toISOString().slice(0,16)}">
-                </div>
-                <input type="hidden" name="score1" value="0">
-                <input type="hidden" name="score2" value="0">
-                <input type="hidden" name="status" value="scheduled">
-                <div style="display:flex; gap: 1rem;">
-                    <button type="submit" class="btn-primary">Agendar</button>
-                    <button type="button" onclick="closeModal()">Cancelar</button>
-                </div>
-            </form>
-        `;
-    }
-    
-    formContent.innerHTML = html;
+  if (tipo === 'jogo') {
+    html = `
+      <h2>Adicionar Jogo</h2>
+      <form onsubmit="salvarItem(event, 'jogos')">
+        <div class="form-group">
+          <label>Nome do Jogo</label>
+          <input type="text" name="nome" required placeholder="Ex: CS2">
+        </div>
+        <div class="form-group">
+          <label>Gênero</label>
+          <input type="text" name="genero" required placeholder="Ex: FPS">
+        </div>
+        <div style="display:flex; gap: 1rem;">
+          <button type="submit" class="btn-primary">Salvar</button>
+          <button type="button" onclick="closeModal()">Cancelar</button>
+        </div>
+      </form>
+    `;
+  } else if (tipo === 'time') {
+    html = `
+      <h2>Adicionar Time</h2>
+      <form onsubmit="salvarItem(event, 'times')">
+        <div class="form-group">
+          <label>Nome da Equipe</label>
+          <input type="text" name="nome" required placeholder="Ex: Ninjas da Noite">
+        </div>
+        <div class="form-group">
+          <label>Cor Identidade</label>
+          <input type="color" name="cor" value="#6366f1">
+        </div>
+        <div style="display:flex; gap: 1rem;">
+          <button type="submit" class="btn-primary">Criar</button>
+          <button type="button" onclick="closeModal()">Cancelar</button>
+        </div>
+      </form>
+    `;
+  } else if (tipo === 'competidor') {
+    html = `
+      <h2>Registrar Competidor</h2>
+      <form onsubmit="salvarItem(event, 'competidores')">
+        <div class="form-group">
+          <label>Nome Completo</label>
+          <input type="text" name="nome" required>
+        </div>
+        <div class="form-group">
+          <label>Apelido</label>
+          <input type="text" name="apelido" required>
+        </div>
+        <div class="form-group">
+          <label>Time</label>
+          <select name="idTime" required>
+            ${estado.times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex; gap: 1rem;">
+          <button type="submit" class="btn-primary">Registrar</button>
+          <button type="button" onclick="closeModal()">Cancelar</button>
+        </div>
+      </form>
+    `;
+  }
+
+  if (tipo === 'confronto') {
+    html = `
+      <h2>Novo Confronto</h2>
+      <form onsubmit="salvarItem(event, 'confrontos')">
+        <div class="form-group">
+          <label>Jogo</label>
+          <select name="idJogo" required>
+            ${estado.jogos.map(j => `<option value="${j.id}">${j.nome}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label>Time A</label>
+            <select name="idTime1" required>
+              ${estado.times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Time B</label>
+            <select name="idTime2" required>
+              ${estado.times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <input type="hidden" name="data" value="${new Date().toISOString().slice(0,16)}">
+        <input type="hidden" name="placar1" value="0">
+        <input type="hidden" name="placar2" value="0">
+        <input type="hidden" name="situacao" value="agendado">
+        <div style="display:flex; gap: 1rem;">
+          <button type="submit" class="btn-primary">Registrar</button>
+          <button type="button" onclick="closeModal()">Cancelar</button>
+        </div>
+      </form>
+    `;
+  }
+
+  conteudoForm.innerHTML = html;
 }
 
 function closeModal() {
-    modal.style.opacity = '0';
-    modal.style.pointerEvents = 'none';
-    setTimeout(() => {
-        modal.style.display = 'none';
-    }, 300);
+  modal.style.opacity = '0';
+  modal.style.pointerEvents = 'none';
+  setTimeout(() => { modal.style.display = 'none'; }, 300);
 }
 
-function saveItem(event, collection) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const newItem = Object.fromEntries(formData.entries());
-    
-    // Auto Increment ID
-    const maxId = state[collection].reduce((max, obj) => (obj.id > max ? obj.id : max), 0);
-    newItem.id = Number(maxId) + 1;
+// ==================== SALVAR (POST na API) ====================
 
-    // Convert numeric fields
-    if (newItem.teamId) newItem.teamId = Number(newItem.teamId);
-    if (newItem.gameId) newItem.gameId = Number(newItem.gameId);
-    if (newItem.team1Id) newItem.team1Id = Number(newItem.team1Id);
-    if (newItem.team2Id) newItem.team2Id = Number(newItem.team2Id);
-    if (newItem.score1 !== undefined) newItem.score1 = Number(newItem.score1);
-    if (newItem.score2 !== undefined) newItem.score2 = Number(newItem.score2);
+async function salvarItem(evento, rota) {
+  evento.preventDefault();
+  const dadosForm  = new FormData(evento.target);
+  const novoItem   = Object.fromEntries(dadosForm.entries());
 
-    state[collection].push(newItem);
-    saveState();
-    closeModal();
+  await fetch(`${URL_API}/${rota}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(novoItem)
+  });
+
+  await carregarDados();
+  renderizarTudo();
+  closeModal();
 }
 
-function finishMatch(id) {
-    const match = state.matches.find(m => m.id == id);
-    if (!match) return;
+// ==================== FINALIZAR CONFRONTO (PUT na API) ====================
 
-    const s1 = prompt(`Placar para ${state.teams.find(t => t.id == match.team1Id).name}:`, "0");
-    const s2 = prompt(`Placar para ${state.teams.find(t => t.id == match.team2Id).name}:`, "0");
+async function finalizarConfronto(id) {
+  const confronto = estado.confrontos.find(c => c.id == id);
+  if (!confronto) return;
 
-    if (s1 !== null && s2 !== null) {
-        match.score1 = Number(s1);
-        match.score2 = Number(s2);
-        match.status = 'finished';
-        saveState();
-    }
+  const placar1 = Math.floor(Math.random() * 10);
+  const placar2 = Math.floor(Math.random() * 10);
+
+  await fetch(`${URL_API}/confrontos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ placar1, placar2, situacao: 'finalizado' })
+  });
+
+  await carregarDados();
+  renderizarTudo();
 }
